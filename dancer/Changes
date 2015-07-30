@@ -1,5 +1,16 @@
 Revision history for Dancer::Template::TemplateFlute
 
+0.0150 Fri Jul 31 11:28:20 2015 EEST
+
+    [ENHANCEMENTS]
+
+    * New method error_tokens (Marco Pessotto, GH #16, #17).
+
+    [BUG FIXES]
+
+    * Store the errors in the session when calling errors with an argument
+      (Marco Pessotto, GH #14).
+
 0.0142 Mon Apr 20 16:39:29 2015 CEST
 
     [BUG FIXES]
