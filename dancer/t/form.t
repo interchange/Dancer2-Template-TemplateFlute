@@ -29,7 +29,7 @@ is_deeply($form->errors, [
                            name => 'year',
                            label => 'random',
                           }
-                         ]);
+                         ]) or diag Dumper($form->errors);
 
 eval {
     $form->errors({ mail => { foo => 'bar' } });

@@ -310,7 +310,7 @@ sub errors {
     
     if ($errors) {
         if (ref($errors) eq 'HASH') {
-            foreach my $key (%$errors) {
+            foreach my $key (sort keys %$errors) {
                 my $value = $errors->{$key};
                 my $label;
                 if (my $type = ref($value)) {
