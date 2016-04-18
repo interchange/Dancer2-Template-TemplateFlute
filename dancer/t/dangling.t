@@ -1,39 +1,35 @@
-#! perl
-
 use strict;
 use warnings;
 
-use File::Spec;
-use Data::Dumper;
+BEGIN {
+    $ENV{DANCER_ENVIRONMENT} = 'dangling';
+}
 
-use Dancer qw/:syntax/;
+use Test::More;
+use Plack::Test;
+use HTTP::Request::Common;
 
-set environment => 'production';
-set engines => {
-                template_flute => { check_dangling => 1 },
-               };
+{
+    package TestApp;
+    use Dancer2;
 
-set template => 'template_flute';
+    get '/' => sub {
+        template product => {};
+    };
+}
 
-set views => 't/views';
-set log => 'debug';
+my $test = Plack::Test->create( TestApp->to_app );
+my $trap = TestApp->dancer_app->logger_engine->trapper;
 
-get '/' => sub {
-    template product => {};
-};
+my $res = $test->request( GET '/' );
+ok $res->is_success, "GET / successful";
+like $res->content, qr/product-gallery/, "content looks good for /";
 
-use Test::More tests => 10, import => ['!pass'];
-
-use Dancer::Test;
-
-response_content_like [GET => '/'], qr/product-gallery/,
-  "content looks good for /";
-my $logs = read_logs;
-
-ok (@$logs == 4);
-diag to_dumper($logs);
+my $logs = $trap->read;
+ok( @$logs == 4, "Found 4 logs" ) or diag explain $logs;
 foreach my $log (@$logs) {
     is $log->{level}, "debug", "Debug found";
     like $log->{message}, qr/Found dangling element/, "log looks good";
 }
 
+done_testing;

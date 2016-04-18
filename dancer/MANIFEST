@@ -11,6 +11,7 @@ MANIFEST.SKIP
 README
 t/00-load.t
 t/dangling-on.t
+t/dangling-on-disabled.t
 t/dangling.t
 t/disable-autodect.t
 t/double-dropdown.t

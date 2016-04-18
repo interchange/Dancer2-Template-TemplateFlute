@@ -1,21 +1,5 @@
 package Dancer2::Template::TemplateFlute;
 
-use strict;
-use warnings;
-
-use Template::Flute;
-use Template::Flute::Iterator;
-use Template::Flute::Utils;
-use Template::Flute::I18N;
-use Module::Load;
-use Scalar::Util qw/blessed/;
-
-use Dancer::Config;
-
-use base 'Dancer::Template::Abstract';
-
-our $VERSION = '0.0150';
-
 =head1 NAME
 
 Dancer2::Template::TemplateFlute - Template::Flute wrapper for Dancer2
@@ -23,6 +7,315 @@ Dancer2::Template::TemplateFlute - Template::Flute wrapper for Dancer2
 =head1 VERSION
 
 Version 0.0150
+
+=cut
+
+our $VERSION = '0.0150';
+
+use Dancer2::Core::Types;
+use Module::Runtime qw/use_module/;
+use Scalar::Util qw/blessed/;
+use Template::Flute;
+use Template::Flute::Iterator;
+use Template::Flute::Utils;
+use Template::Flute::I18N;
+use Try::Tiny;
+
+use Moo;
+with 'Dancer2::Core::Role::Template';
+use namespace::clean;
+
+has autodetect_disable => (
+    is      => 'ro',
+    isa     => ArrayRef,
+    lazy    => 1,
+    default => sub {
+        # do we need to add anything to default list?
+        my @autodetect_disable = ();
+        if ( my $from_config = shift->config->{autodetect}->{disable} ) {
+            push @autodetect_disable, @$from_config;
+        }
+        return \@autodetect_disable;
+    },
+);
+
+has check_dangling => (
+    is      => 'ro',
+    isa     => Bool,
+    lazy    => 1,
+    default => sub { shift->config->{check_dangling} },
+);
+
+has disable_check_dangling => (
+    is      => 'ro',
+    isa     => Bool,
+    lazy    => 1,
+    default => sub { shift->config->{disable_check_dangling} },
+);
+
+has '+default_tmpl_ext' => (
+    default => sub { shift->config->{extension} || 'html' },
+);
+
+has filters => (
+    is      => 'ro',
+    isa     => HashRef,
+    lazy    => 1,
+    default => sub { shift->config->{filters} || +{} },
+);
+
+has iterators => (
+    is      => 'rw',
+    isa     => HashRef,
+    lazy    => 1,
+    default => sub { shift->config->{iterators} || +{} },
+);
+
+has i18n_obj => (
+    is  => 'lazy',
+    isa => InstanceOf['Template::Flute::I18N'],
+);
+
+sub _build_i18n_obj {
+    my $self = shift;
+    my $conf = $self->config;
+    my $localize;
+    if ( $conf and exists $conf->{i18n} and exists $conf->{i18n}->{class} ) {
+        my $class = $conf->{i18n}->{class};
+        my %args;
+        if ( $conf->{i18n}->{options} ) {
+
+            # do a shallow copy and pass that
+            %args = %{ $conf->{i18n}->{options} };
+        }
+        my $obj = try {
+            use_module($class)->new(%args);
+        }
+        catch {
+            die "Failed to import class $class: $_";
+
+        }
+        my $method = $conf->{i18n}->{method} || 'localize';
+
+        # store the closure in the object to avoid loading it up each time
+        $localize = sub {
+            my $to_translate = shift;
+            return $obj->$method($to_translate);
+        };
+    }
+
+    # provide a common interface with Template::Flute::I18N
+    return Template::Flute::I18N->new($localize);
+}
+
+sub render ($$$) {
+    my ( $self, $template, $tokens ) = @_;
+    my ( %args, $flute, $html, $name, %parms, %template_iterators,
+        %iterators, $class );
+
+    %args = (
+        template_file  => $template,
+        scopes         => 1,
+        auto_iterators => 1,
+        values         => $tokens,
+        filters        => $self->filters,
+        autodetect     => { disable => $self->autodetect_disable },
+
+        #autodetect     => { disable => [qw/Dancer2::Session::Abstract/] },
+    );
+
+    # determine whether we need to pass an adjust URI to Template::Flute
+    if ( my $request = $tokens->{request} ) {
+        my $pos = index( $request->path, $request->path_info );
+        if ( $pos > 0 ) {
+            $args{uri} = substr( $request->path, 0, $pos );
+        }
+    }
+
+    if ( my $i18n = $self->i18n_obj ) {
+        $args{i18n} = $i18n;
+    }
+
+    if ( my $email_cids = $tokens->{email_cids} ) {
+        $args{email_cids} = $email_cids;
+
+        # use the 'cids' tokens only if email_cids is defined
+        if ( my $cid_options = $tokens->{cids} ) {
+            $args{cids} = {%$cid_options};
+        }
+    }
+
+    $flute = Template::Flute->new(%args);
+
+    # process HTML template to determine iterators used by template
+    $flute->process_template();
+
+    # instantiate iterators where object isn't yet available
+    if ( %template_iterators = $flute->template()->iterators ) {
+        my $selector;
+
+        for my $name ( keys %template_iterators ) {
+            if ( my $value = $self->iterators->{$name} ) {
+                %parms = %$value;
+
+                $class = "Template::Flute::Iterator::$parms{class}";
+
+                if ( $parms{file} ) {
+                    $parms{file} =
+                      Template::Flute::Utils::derive_filename( $template,
+                        $parms{file}, 1 );
+                }
+
+                if ( $selector = delete $parms{selector} ) {
+                    if ( $selector eq '*' ) {
+                        $parms{selector} = '*';
+                    }
+                    elsif ( $tokens->{$selector} ) {
+                        $parms{selector} =
+                          { $selector => $tokens->{$selector} };
+                    }
+                }
+
+                eval "require $class";
+                if ($@) {
+                    die "Failed to load class $class for iterator $name: $@\n";
+                }
+
+                eval { $iterators{$name} = $class->new(%parms); };
+
+                if ($@) {
+                    die
+"Failed to instantiate class $class for iterator $name: $@\n";
+                }
+
+                $flute->specification->set_iterator( $name, $iterators{$name} );
+            }
+        }
+    }
+
+    # check for forms
+    if ( my @forms = $flute->template->forms() ) {
+        if ( $tokens->{form} ) {
+            $self->_tf_manage_forms( $flute, $tokens, @forms );
+        }
+        else {
+            Dancer::Logger::debug( 'Missing form parameters for forms '
+                  . join( ", ", sort map { $_->name } @forms ) );
+        }
+    }
+    elsif ( $tokens->{form} ) {
+        my $form_name =
+          blessed( $tokens->{form} ) ? $tokens->{form}->name : $tokens->{form};
+
+        Dancer::Logger::debug(
+"Form $form_name passed, but no forms found in the template $template."
+        );
+    }
+
+    $html = $flute->process();
+
+    if (
+        $self->check_dangling
+        or ( $tokens->{settings}->{environment} eq 'development'
+            && !$self->disable_check_dangling )
+      )
+    {
+
+        if ( my @warnings = $flute->specification->dangling ) {
+            foreach my $warn (@warnings) {
+                $self->log_cb->(
+                    'debug',
+                    'Found dangling element '
+                      . $warn->{type} . ' '
+                      . $warn->{name} . ' (',
+                    $warn->{dump},
+                    ')'
+                );
+            }
+        }
+    }
+    return $html;
+}
+
+sub _tf_manage_forms {
+    my ( $self, $flute, $tokens, @forms ) = @_;
+
+    # simple case: only one form passed and one in the flute
+    if ( ref( $tokens->{form} ) ne 'ARRAY' ) {
+        my $form_name = $tokens->{form}->name;
+        if ( @forms == 1 ) {
+            my $form = shift @forms;
+            if (   $form_name eq 'main'
+                or $form_name eq $form->name )
+            {
+# Dancer::Logger::debug("Filling the template form with" . Dumper($tokens->{form}->values));
+                $self->_tf_fill_forms( $flute, $tokens->{form}, $form,
+                    $tokens );
+            }
+        }
+        else {
+            my $found = 0;
+            foreach my $form (@forms) {
+
+# Dancer::Logger::debug("Filling the template form with" . Dumper($tokens->{form}->values));
+                if ( $form_name eq $form->name ) {
+                    $self->_tf_fill_forms( $flute, $tokens->{form}, $form,
+                        $tokens );
+                    $found++;
+                }
+            }
+            if ( $found != 1 ) {
+                Dancer::Logger::error(
+"Multiple form are not being managed correctly, found $found corresponding forms, but we expected just one!"
+                );
+            }
+        }
+    }
+    else {
+        foreach my $passed_form ( @{ $tokens->{form} } ) {
+            foreach my $form (@forms) {
+                if ( $passed_form->name eq $form->name ) {
+                    $self->_tf_fill_forms( $flute, $passed_form, $form,
+                        $tokens );
+                }
+            }
+        }
+    }
+}
+
+sub _tf_fill_forms {
+    my ( $self, $flute, $passed_form, $form, $tokens ) = @_;
+
+    # arguments:
+    # $flute is the template object.
+
+    # $passed_form is the Dancer::Plugin::Form object we got from the
+    # tokens, which is $tokens->{form} when we have just a single one.
+
+    # $form is the form object we got from the template itself, with
+    # $flute->template->forms
+
+    # $tokens is the hashref passed to the template. We need it for the
+    # iterators.
+
+    my ( $iter, $action );
+    for my $name ( $form->iterators ) {
+        if ( ref( $tokens->{$name} ) eq 'ARRAY' ) {
+            $iter = Template::Flute::Iterator->new( $tokens->{$name} );
+            $flute->specification->set_iterator( $name, $iter );
+        }
+    }
+    if ( $action = $passed_form->action() ) {
+        $form->set_action($action);
+    }
+    $passed_form->fields( [ map { $_->{name} } @{ $form->fields() } ] );
+    $form->fill( $passed_form->fill() );
+
+    #if ( Dancer2::Config::settings->{session} ) {
+    $passed_form->to_session;
+
+    #}
+}
 
 =head1 DESCRIPTION
 
@@ -368,230 +661,6 @@ Returns default template extension.
 =head2 render TEMPLATE TOKENS
 
 Renders template TEMPLATE with values from TOKENS.
-
-=cut
-
-sub default_tmpl_ext {
-	return 'html';
-}
-
-sub _i18n_obj {
-    my $self = shift;
-    unless (exists $self->{_i18n_obj}) {
-        my $conf = $self->config;
-        my $localize;
-        if ($conf and exists $conf->{i18n} and exists $conf->{i18n}->{class}) {
-            my $class = $conf->{i18n}->{class};
-            load $class;
-            my %args;
-            if ($conf->{i18n}->{options}) {
-                # do a shallow copy and pass that
-                %args = %{ $conf->{i18n}->{options} };
-            }
-            my $obj = $class->new(%args);
-            my $method = $conf->{i18n}->{method} || 'localize';
-            # store the closure in the object to avoid loading it up each time
-            $localize = sub {
-                my $to_translate = shift;
-                return $obj->$method($to_translate);
-            };
-        }
-        # provide a common interface with Template::Flute::I18N
-        $self->{_i18n_obj} = Template::Flute::I18N->new($localize);
-    }
-    return $self->{_i18n_obj};
-}
-
-
-sub render ($$$) {
-	my ($self, $template, $tokens) = @_;
-	my (%args, $flute, $html, $name, $value, %parms, %template_iterators, %iterators, $class);
-
-	%args = (template_file => $template,
-		 scopes => 1,
-		 auto_iterators => 1,
-		 values => $tokens,
-		 filters => $self->config->{filters},
-		 autodetect => { disable => [qw/Dancer2::Session::Abstract/] },
-	    );
-
-    # determine whether we need to pass an adjust URI to Template::Flute
-    if (my $request = $tokens->{request}) {
-        my $pos = index($request->path, $request->path_info);
-        if ($pos > 0) {
-            $args{uri} = substr($request->path, 0, $pos);
-        }
-    }
-
-    if (my $i18n = $self->_i18n_obj) {
-        $args{i18n} = $i18n;
-    }
-
-    if (my $email_cids = $tokens->{email_cids}) {
-        $args{email_cids} = $email_cids;
-        # use the 'cids' tokens only if email_cids is defined
-        if (my $cid_options = $tokens->{cids}) {
-            $args{cids} = { %$cid_options };
-        }
-    }
-
-    if ($self->config->{autodetect} && $self->config->{autodetect}->{disable}) {
-        push @{$args{autodetect}{disable}},
-          @{$self->config->{autodetect}->{disable}};
-    }
-
-	$flute = Template::Flute->new(%args);
-
-	# process HTML template to determine iterators used by template
-	$flute->process_template();
-
-	# instantiate iterators where object isn't yet available
-	if (%template_iterators = $flute->template()->iterators) {
-	    my $selector;
-
-		for my $name (keys %template_iterators) {
-			if ($value = $self->config->{iterators}->{$name}) {
-				%parms = %$value;
-				
-				$class = "Template::Flute::Iterator::$parms{class}";
-
-				if ($parms{file}) {
-					$parms{file} = Template::Flute::Utils::derive_filename($template,
-																		   $parms{file}, 1);
-				}
-
-				if ($selector = delete $parms{selector}) {
-				    if ($selector eq '*') {
-					$parms{selector} = '*';
-                                    }
-				    elsif ($tokens->{$selector}) {
-					$parms{selector} = {$selector => $tokens->{$selector}};
-				    }
-				}
-
-				eval "require $class";
-				if ($@) {
-					die "Failed to load class $class for iterator $name: $@\n";
-				}
-
-				eval {
-					$iterators{$name} = $class->new(%parms);
-				};
-				
-				if ($@) {
-					die "Failed to instantiate class $class for iterator $name: $@\n";
-				}
-
-				$flute->specification->set_iterator($name, $iterators{$name});
-			}
-		}
-	}
-
-	# check for forms
-    if (my @forms = $flute->template->forms()) {
-        if ($tokens->{form}) {
-            $self->_tf_manage_forms($flute, $tokens, @forms);
-        }
-        else {
-            Dancer::Logger::debug('Missing form parameters for forms ' .
-                                  join(", ", sort map { $_->name } @forms));
-        }
-    }
-    elsif ($tokens->{form}) {
-        my $form_name = blessed($tokens->{form}) ? $tokens->{form}->name : $tokens->{form};
-
-        Dancer::Logger::debug("Form $form_name passed, but no forms found in the template $template.");
-    }
-
-	$html = $flute->process();
-
-    if ($self->config->{check_dangling} or
-        ($tokens->{settings}->{environment} eq 'development' &&
-         !$self->config->{disable_check_dangling})) {
-
-        if (my @warnings = $flute->specification->dangling) {
-            foreach my $warn (@warnings) {
-                Dancer::Logger::debug('Found dangling element '
-                                        . $warn->{type} . ' ' . $warn->{name}
-                                        . ' (' , $warn->{dump} , ')');
-            }
-        }
-    }
-	return $html;
-}
-
-sub _tf_manage_forms {
-    my ($self, $flute, $tokens, @forms) = @_;
-
-    # simple case: only one form passed and one in the flute
-    if (ref($tokens->{form}) ne 'ARRAY') {
-        my $form_name = $tokens->{form}->name;
-        if (@forms == 1) {
-            my $form = shift @forms;
-            if ($form_name eq 'main' or
-                $form_name eq $form->name) {
-                # Dancer::Logger::debug("Filling the template form with" . Dumper($tokens->{form}->values));
-                $self->_tf_fill_forms($flute, $tokens->{form}, $form, $tokens);
-            }
-        }
-        else {
-            my $found = 0;
-            foreach my $form (@forms) {
-                # Dancer::Logger::debug("Filling the template form with" . Dumper($tokens->{form}->values));
-                if ($form_name eq $form->name) {
-                    $self->_tf_fill_forms($flute, $tokens->{form}, $form, $tokens);
-                    $found++;
-                }
-            }
-            if ($found != 1) {
-                Dancer::Logger::error("Multiple form are not being managed correctly, found $found corresponding forms, but we expected just one!")
-              }
-        }
-    }
-    else {
-        foreach my $passed_form (@{$tokens->{form}}) {
-            foreach my $form (@forms) {
-                if ($passed_form->name eq $form->name) {
-                    $self->_tf_fill_forms($flute, $passed_form, $form, $tokens);
-                }
-            }
-        }
-    }
-}
-
-
-sub _tf_fill_forms {
-    my ($self, $flute, $passed_form, $form, $tokens) = @_;
-    # arguments:
-    # $flute is the template object.
-
-    # $passed_form is the Dancer::Plugin::Form object we got from the
-    # tokens, which is $tokens->{form} when we have just a single one.
-
-    # $form is the form object we got from the template itself, with
-    # $flute->template->forms
-
-    # $tokens is the hashref passed to the template. We need it for the
-    # iterators.
-
-    my ($iter, $action);
-    for my $name ($form->iterators) {
-        if (ref($tokens->{$name}) eq 'ARRAY') {
-            $iter = Template::Flute::Iterator->new($tokens->{$name});
-            $flute->specification->set_iterator($name, $iter);
-        }
-    }
-    if ($action = $passed_form->action()) {
-        $form->set_action($action);
-    }
-    $passed_form->fields([map {$_->{name}} @{$form->fields()}]);
-    $form->fill($passed_form->fill());
-
-    if (Dancer::Config::settings->{session}) {
-        $passed_form->to_session;
-    }
-}
-
 
 =head1 SEE ALSO
 

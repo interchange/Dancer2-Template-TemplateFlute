@@ -1,64 +1,74 @@
-#! perl
-
 use strict;
 use warnings;
 
-use File::Spec;
-use Data::Dumper;
+use Test::More;
+use Test::Deep;
+use Plack::Test;
+use HTTP::Request::Common;
 
-use Dancer qw/:syntax/;
+{
 
-set template => 'template_flute';
+    package TestApp;
+    use Dancer2;
 
-set views => 't/views';
-set log => 'debug';
-
-get '/' => sub {
-    template product => {};
-};
-
-use Test::More tests => 16, import => ['!pass'];
-
-use Dancer::Test;
-
-response_content_like [GET => '/'], qr/product-gallery/,
-  "content looks good for /";
-my $logs = read_logs;
-
-ok (@$logs == 4);
-diag to_dumper($logs);
-foreach my $log (@$logs) {
-    is $log->{level}, "debug", "Debug found";
-    like $log->{message}, qr/Found dangling element/, "log looks good";
+    get '/' => sub {
+        template product => {};
+    };
 }
 
+subtest 'no environment' => sub {
+    my $app = TestApp->to_app;
+    is ref $app, 'CODE', 'Got app';
 
-set environment => 'production';
+    my $test = Plack::Test->create($app);
+    my $trap = TestApp->dancer_app->logger_engine->trapper;
 
-response_content_like [GET => '/'], qr/product-gallery/,
-  "content looks good for /";
+    my $res = $test->request( GET '/' );
+    ok $res->is_success, "GET / successful";
 
-$logs = read_logs;
+    like $res->content, qr/product-gallery/, "content looks good for /";
 
-is_deeply $logs, [], "No logs found in production";
+    my $expected = {
+        level   => 'debug',
+        message => re(qr/Found dangling element/),
+    };
 
-set environment => 'development';
+    my $logs = $trap->read;
+    cmp_deeply $logs,
+      superbagof(
+        superhashof($expected), superhashof($expected),
+        superhashof($expected), superhashof($expected),
+      ),
+      "Got debug log 'Found dangling element' four times"
+      or diag explain $logs;
+};
 
-response_content_like [GET => '/'], qr/product-gallery/,
-  "content looks good for /";
-$logs = read_logs;
+{
 
-ok ((@$logs == 4), "Logs found in development");
+    package TestProduction;
+    use Dancer2;
 
-set engines => {
-                template_flute => { disable_check_dangling => 1 },
-               };
+    set environment => 'production';
 
-set template => 'template_flute';
+    get '/' => sub {
+        template product => {};
+    };
+}
 
-response_content_like [GET => '/'], qr/product-gallery/,
-  "content looks good for /";
+subtest 'production' => sub {
+    my $app = TestProduction->to_app;
+    is ref $app, 'CODE', 'Got app';
 
-$logs = read_logs;
+    my $test = Plack::Test->create($app);
+    my $trap = TestProduction->dancer_app->logger_engine->trapper;
 
-is_deeply $logs, [], "No logs found in development with disable_check_dangling";
+    my $res = $test->request( GET '/' );
+    ok $res->is_success, "GET / successful";
+
+    like $res->content, qr/product-gallery/, "content looks good for /";
+
+    my $logs = $trap->read;
+    is_deeply $logs, [], "No logs found in production" or diag explain $logs;
+};
+
+done_testing;
