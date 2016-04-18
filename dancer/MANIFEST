@@ -3,8 +3,7 @@ examples/hello.png
 examples/mail.html
 examples/mail.xml
 examples/send-mail.pl
-lib/Dancer/Plugin/Form.pm
-lib/Dancer/Template/TemplateFlute.pm
+lib/Dancer2/Template/TemplateFlute.pm
 LICENSE
 Makefile.PL
 MANIFEST			This list of files

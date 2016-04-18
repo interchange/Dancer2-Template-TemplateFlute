@@ -1,4 +1,4 @@
-package Dancer::Template::TemplateFlute;
+package Dancer2::Template::TemplateFlute;
 
 use strict;
 use warnings;
@@ -18,7 +18,7 @@ our $VERSION = '0.0150';
 
 =head1 NAME
 
-Dancer::Template::TemplateFlute - Template::Flute wrapper for Dancer
+Dancer2::Template::TemplateFlute - Template::Flute wrapper for Dancer2
 
 =head1 VERSION
 
@@ -26,7 +26,7 @@ Version 0.0150
 
 =head1 DESCRIPTION
 
-This class is an interface between Dancer's template engine abstraction layer
+This class is an interface between Dancer2's template engine abstraction layer
 and the L<Template::Flute> module.
 
 In order to use this engine, use the template setting:
@@ -97,7 +97,7 @@ named C<cids>. See L<Template::Flute> for them.
 Sometimes you want to pass values to a template which are objects, but
 don't have an accessor, so they should be treated like hashrefs instead.
 
-By default, the class C<Dancer::Session::Abstract> is treated this way. You
+By default, the class C<Dancer2::Session::Abstract> is treated this way. You
 can specify additional classes with the following syntax:
 
   engines:
@@ -137,7 +137,7 @@ C<try_to_translate> method.
 A class could be something like this:
 
   package MyTestApp::Lexicon;
-  use Dancer ':syntax';
+  use Dancer2;
 
   sub new {
       my $class = shift;
@@ -215,12 +215,13 @@ on by default. You can silence the logs by setting:
 
 =head2 FORMS
 
-Dancer::Template::TemplateFlute includes a form plugin L<Dancer::Plugin::Form>,
-which supports L<Template::Flute> forms.
+Dancers::Template::TemplateFlute has a form plugin
+L<Dancer::Plugin::TemplateFlute> which must be installed in order to use
+L<Template::Flute> forms.
 
 The token C<form> is reserved for forms. It can be a single
-L<Dancer::Plugin::Form> object or an arrayref of
-L<Dancer::Plugin::Form> objects.
+L<Dancer2::Plugin::TeplateFlute> form object or an arrayref of
+L<Dancer2::Plugin::TemplateFlute> form objects.
 
 =head3 Typical usage for a single form.
 
@@ -411,7 +412,7 @@ sub render ($$$) {
 		 auto_iterators => 1,
 		 values => $tokens,
 		 filters => $self->config->{filters},
-		 autodetect => { disable => [qw/Dancer::Session::Abstract/] },
+		 autodetect => { disable => [qw/Dancer2::Session::Abstract/] },
 	    );
 
     # determine whether we need to pass an adjust URI to Template::Flute
