@@ -12,6 +12,7 @@ Version 0.0150
 
 our $VERSION = '0.0150';
 
+use Carp qw/croak/;
 use Dancer2::Core::Types;
 use Module::Runtime qw/use_module/;
 use Scalar::Util qw/blessed/;
@@ -93,8 +94,7 @@ sub _build_i18n_obj {
             use_module($class)->new(%args);
         }
         catch {
-            die "Failed to import class $class: $_";
-
+            croak "Failed to import class $class: $_";
         }
         my $method = $conf->{i18n}->{method} || 'localize';
 
@@ -121,7 +121,6 @@ sub render ($$$) {
         values         => $tokens,
         filters        => $self->filters,
         autodetect     => { disable => $self->autodetect_disable },
-
         #autodetect     => { disable => [qw/Dancer2::Session::Abstract/] },
     );
 
@@ -155,6 +154,8 @@ sub render ($$$) {
     if ( %template_iterators = $flute->template()->iterators ) {
         my $selector;
 
+        print STDERR "****** HERE ******\n";
+
         for my $name ( keys %template_iterators ) {
             if ( my $value = $self->iterators->{$name} ) {
                 %parms = %$value;
@@ -179,13 +180,13 @@ sub render ($$$) {
 
                 eval "require $class";
                 if ($@) {
-                    die "Failed to load class $class for iterator $name: $@\n";
+                    croak "Failed to load class $class for iterator $name: $@\n";
                 }
 
                 eval { $iterators{$name} = $class->new(%parms); };
 
                 if ($@) {
-                    die
+                    croak
 "Failed to instantiate class $class for iterator $name: $@\n";
                 }
 
@@ -309,8 +310,8 @@ sub _tf_fill_forms {
     if ( $action = $passed_form->action() ) {
         $form->set_action($action);
     }
-    $passed_form->fields( [ map { $_->{name} } @{ $form->fields() } ] );
-    $form->fill( $passed_form->fill() );
+    $passed_form->set_fields( [ map { $_->{name} } @{ $form->fields() } ] );
+    $form->fill( $passed_form->values );
 
     #if ( Dancer2::Config::settings->{session} ) {
     $passed_form->to_session;
