@@ -30,10 +30,11 @@ has autodetect_disable => (
     isa     => ArrayRef,
     lazy    => 1,
     default => sub {
+        my $self = shift;
         # do we need to add anything to default list?
         my @autodetect_disable = ();
-        if ( my $from_config = shift->config->{autodetect}->{disable} ) {
-            push @autodetect_disable, @$from_config;
+        if ( my $autodetect = $self->config->{autodetect} ) {
+            push @autodetect_disable, @{ $autodetect->{disable} };
         }
         return \@autodetect_disable;
     },

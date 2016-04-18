@@ -1,72 +1,75 @@
-#!/usr/bin/env perl
-
 use strict;
 use warnings;
 
-package My::Namespace;
-sub new {
-    my ($class, %args) = @_;
-    bless \%args, $class;
+BEGIN {
+    $ENV{DANCER_ENVIRONMENT} = 'disable-autodect';
 }
 
-package My::Namespace::Class;
-use base 'My::Namespace';
+use Test::More;
+use Plack::Test;
+use HTTP::Request::Common;
 
-package Other::Namespace;
+{
+    package My::Namespace;
 
-sub new {
-    my ($class, %args) = @_;
-    bless \%args, $class;
+    sub new {
+        my ( $class, %args ) = @_;
+        bless \%args, $class;
+    }
 }
 
-package Other::Namespace::Class;
-use base 'Other::Namespace';
-
-package Good::Namespace::Class;
-
-sub new {
-    my ($class, %args) = @_;
-    bless \%args, $class;
+{
+    package My::Namespace::Class;
+    use base 'My::Namespace';
 }
 
-sub salute {
-    return "I'm a good class!";
+{
+    package Other::Namespace;
+
+    sub new {
+        my ( $class, %args ) = @_;
+        bless \%args, $class;
+    }
 }
 
-package main;
+{
+    package Other::Namespace::Class;
+    use base 'Other::Namespace';
+}
 
+{
+    package Good::Namespace::Class;
 
-use strict;
-use warnings;
+    sub new {
+        my ( $class, %args ) = @_;
+        bless \%args, $class;
+    }
 
-use File::Spec;
-use Data::Dumper;
+    sub salute {
+        return "I'm a good class!";
+    }
+}
 
-use Dancer qw/:syntax/;
+{
+    package TestApp;
+    use Dancer2;
 
-my $blacklist = [qw/My::Namespace
-                    Other::Namespace/];
+    get '/' => sub {
+        session salute => "Hello session";
+        my %values = (
+            first  => My::Namespace::Class->new( salute    => "Object 1" ),
+            second => Other::Namespace::Class->new( salute => "Object 2" ),
+            third  => Good::Namespace::Class->new(),
+        );
+        template objects => \%values;
+    };
+}
 
-set engines => { template_flute => { autodetect  => { disable => $blacklist } } };
-set template => 'template_flute';
-set views => 't/views';
-set log => 'debug';
+my $test = Plack::Test->create( TestApp->to_app );
+my $trap = TestApp->dancer_app->logger_engine->trapper;
 
-get '/' => sub {
-    session salute => "Hello session";
-    my %values = (
-                  first => My::Namespace::Class->new(salute => "Object 1"),
-                  second => Other::Namespace::Class->new(salute => "Object 2"),
-                  third  => Good::Namespace::Class->new(),
-                 );
-    template objects => \%values;
-};
-
-use Test::More tests => 3, import => ['!pass'];
-
-use Dancer::Test;
-
-my $resp = dancer_response GET => '/';
+my $res = $test->request( GET '/' );
+ok $res->is_success, "GET / successful" or diag explain $trap->read;
 
 my $expected = <<'HTML';
 <body>
@@ -79,6 +82,8 @@ HTML
 
 $expected =~ s/\n//sg;
 
-response_status_is $resp, 200, "GET / is found";
-response_content_like $resp, qr{\Q$expected\E}, "GET / ok";
-is_deeply read_logs, [], "Empty logs, all good";
+like $res->content, qr{\Q$expected\E}, "GET / content is good";
+
+is_deeply $trap->read, [], "Empty logs, all good";
+
+done_testing;
