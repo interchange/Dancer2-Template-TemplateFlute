@@ -1,110 +1,111 @@
-#!perl
-
 use strict;
 use warnings;
 
-use File::Spec;
-use Data::Dumper;
-use Test::More tests => 10, import => ['!pass'];
-use Dancer qw/:tests/;
+use Test::More;
+use Test::Deep;
+use Plack::Test;
+use HTTP::Request::Common;
 
-set template => 'template_flute';
-set views => 't/views';
+{
 
-my $email_cids = {};
+    package TestApp;
+    use Dancer2;
+    use Test::Deep;
 
-my $mail = template mail => {
-                             email_cids => $email_cids,
-                            };
+    get '/one' => sub {
 
-like($mail, qr/cid:foopng.*cid:fooblapng/, "img src replaced")
-  and diag $mail;
+        my $email_cids = {};
 
-is_deeply $email_cids, {
-                        foopng => {
-                                   filename => 'foo.png',
-                                  },
-                        fooblapng => {
-                                      filename => 'foo-bla.png'
-                                     }
-                       }, "Cids ok";
+        my $mail = template mail => { email_cids => $email_cids, };
 
-my $other = template mail => {};
+        $email_cids->{foopng}->{filename} eq 'foo.png'
+          && $email_cids->{fooblapng}->{filename} eq 'foo-bla.png'
+          && return $mail;
+    };
 
-like $other, qr/src="foo\.png".*src="foo-bla.png"/;
-unlike $other, qr/cid:/, "No hashref passed, no cid replaced";
+    get '/two' => sub {
 
+        return template mail => {};
+    };
 
-$email_cids = {};
+    get '/three' => sub {
 
-$mail = template mail => {
-                           email_cids => $email_cids,
-                           mylist => [{
-                                       image => 'pippo1.png',
-                                      },
-                                      {
-                                       image => 'pippo2.png',
-                                      },
-                                      {
-                                       image => 'http://example.com/image.jpg',
-                                      }
-                                     ],
-                          };
+        my $email_cids = {};
 
+        my $mail = template mail => {
+            email_cids => $email_cids,
+            mylist     => [
+                {
+                    image => 'pippo1.png',
+                },
+                {
+                    image => 'pippo2.png',
+                },
+                {
+                    image => 'http://example.com/image.jpg',
+                }
+            ],
+        };
 
-is_deeply $email_cids, {
-                        foopng => {
-                                   filename => 'foo.png',
-                                  },
-                        fooblapng => {
-                                      filename => 'foo-bla.png'
-                                     },
-                        pippo1png => {
-                                      filename => 'pippo1.png',
-                                     },
-                        pippo2png => {
-                                      filename => 'pippo2.png',
-                                     },
-                       }, "Cids ok";
+             $email_cids->{foopng}->{filename} eq 'foo.png'
+          && $email_cids->{fooblapng}->{filename} eq 'foo-bla.png'
+          && $email_cids->{pippo1png}->{filename} eq 'pippo1.png'
+          && $email_cids->{pippo2png}->{filename} eq 'pippo2.png'
+          && return $mail;
+    };
 
+    get '/four' => sub {
 
-like $mail, qr/src="cid:pippo1png".*src="cid:pippo2png"/, "Found the cids";
-like $mail, qr!src="http://example.com/image.jpg"!, "URL left intact";
+        my $email_cids = {};
 
-$mail = template mail => {
-                          email_cids => $email_cids,
-                          cids => { base_url => 'http://example.com/' },
-                          mylist => [{
-                                      image => 'pippo1.png',
-                                     },
-                                     {
-                                      image => 'pippo2.png',
-                                     },
-                                     {
-                                      image => 'http://example.com/image.jpg',
-                                     }
-                                    ],
-                         };
+        my $mail = template mail => {
+            email_cids => $email_cids,
+            cids       => { base_url => 'http://example.com/' },
+            mylist     => [
+                {
+                    image => 'pippo1.png',
+                },
+                {
+                    image => 'pippo2.png',
+                },
+                {
+                    image => 'http://example.com/image.jpg',
+                }
+            ],
+        };
 
-is_deeply $email_cids, {
-                        foopng => {
-                                   filename => 'foo.png',
-                                  },
-                        fooblapng => {
-                                      filename => 'foo-bla.png'
-                                     },
-                        pippo1png => {
-                                      filename => 'pippo1.png',
-                                     },
-                        pippo2png => {
-                                      filename => 'pippo2.png',
-                                     },
-                        httpexamplecomimagejpg => {
-                                                   filename => 'image.jpg',
-                                                  },
-                       }, "Cids ok";
+             $email_cids->{foopng}->{filename} eq 'foo.png'
+          && $email_cids->{fooblapng}->{filename} eq 'foo-bla.png'
+          && $email_cids->{pippo1png}->{filename} eq 'pippo1.png'
+          && $email_cids->{pippo2png}->{filename} eq 'pippo2.png'
+          && $email_cids->{httpexamplecomimagejpg}->{filename} eq 'image.jpg'
+          && return $mail;
+    };
 
+}
 
-like $mail, qr/src="cid:pippo1png".*src="cid:pippo2png"/, "Found the cids";
-like $mail, qr/src="cid:pippo1png".*src="cid:httpexamplecomimagejpg"/, "Found the cids";
+my $test = Plack::Test->create( TestApp->to_app );
 
+my $res = $test->request( GET '/one' );
+ok $res->is_success, "GET /one successful";
+like $res->content, qr/cid:foopng.*cid:fooblapng/, "img src replaced";
+
+$res = $test->request( GET '/two' );
+ok $res->is_success,  "GET /two successful";
+like $res->content,   qr/src="foo\.png".*src="foo-bla.png"/, "content OK";
+unlike $res->content, qr/cid:/, "No hashref passed, no cid replaced";
+
+$res = $test->request( GET '/three' );
+ok $res->is_success, "GET /three successful";
+like $res->content,  qr/src="cid:pippo1png".*src="cid:pippo2png"/,
+  "Found the cids";
+like $res->content, qr!src="http://example.com/image.jpg"!, "URL left intact";
+
+$res = $test->request( GET '/four' );
+ok $res->is_success, "GET /four successful";
+like $res->content, qr/src="cid:pippo1png".*src="cid:pippo2png"/,
+  "Found the cids";
+like $res->content, qr/src="cid:pippo1png".*src="cid:httpexamplecomimagejpg"/,
+  "Found the cids";
+
+done_testing;
