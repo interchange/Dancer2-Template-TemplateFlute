@@ -2,7 +2,7 @@ NAME
     Dancer2::Template::TemplateFlute - Template::Flute wrapper for Dancer2
 
 VERSION
-    Version 0.200
+    Version 0.200_01_TEST
 
 DESCRIPTION
     This class is an interface between Dancer2's template engine abstraction
@@ -330,11 +330,17 @@ SEE ALSO
     Dancer2, Template::Flute
 
 AUTHOR
-    Stefan Hornburg (Racke), <racke@linuxia.de>
+    Author of the original Dancer module:
+
+    Stefan Hornburg (Racke), "<racke at linuxia.de>"
 
     Conversion to Dancer2:
 
-    Peter Mottram (SysPete), <peter@sysnix.com>
+    Peter Mottram (SysPete), "<peter@sysnix.com>"
+
+    Author of the original version of this Dancer2 module:
+
+    William Carr (mrmaloof), "<bill at bottlenose-wine.com>"
 
 BUGS
     Please report any bugs or feature requests via the GitHub issue tracker

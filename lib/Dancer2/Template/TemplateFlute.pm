@@ -663,11 +663,17 @@ L<Dancer2>, L<Template::Flute>
 
 =head1 AUTHOR
 
-Stefan Hornburg (Racke), <racke@linuxia.de>
+Author of the original Dancer module:
+
+Stefan Hornburg (Racke), C<< <racke at linuxia.de> >>
 
 Conversion to Dancer2:
 
-Peter Mottram (SysPete), <peter@sysnix.com>
+Peter Mottram (SysPete), C<< <peter@sysnix.com> >>
+
+Author of the original version of this Dancer2 module:
+
+William Carr (mrmaloof), C<< <bill at bottlenose-wine.com> >>
 
 =head1 BUGS
 
