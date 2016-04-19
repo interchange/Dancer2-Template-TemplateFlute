@@ -1,27 +1,23 @@
-#!/usr/bin/env perl
-
 use strict;
 use warnings;
+use Test::More;
+use Plack::Test;
+use HTTP::Request::Common;
 
-use File::Spec;
-use Data::Dumper;
+{
 
-use Dancer qw/:syntax/;
+    package TestApp;
+    use Dancer2;
 
-set template => 'template_flute';
-set views => 't/views';
-set log => 'debug';
+    get '/' => sub {
+        session salute  => "Hello world!";
+        template salute => {};
+    };
+}
 
+my $test = Plack::Test->create( TestApp->to_app );
+my $res = $test->request( GET '/' );
+ok $res->is_success, "GET '/' successful";
+like $res->content,  qr{Hello world}, "we got the session contents back";
 
-get '/' => sub {
-    session salute => "Hello world!";
-    template salute => {};
-};
-
-use Test::More tests => 2, import => ['!pass'];
-
-use Dancer::Test;
-
-response_status_is [GET => '/'], 200, "GET / is found";
-response_content_like [GET => '/'], qr{Hello world}, "GET / ok";
-print to_dumper(read_logs);
+done_testing;
