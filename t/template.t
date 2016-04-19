@@ -1,243 +1,355 @@
-#! perl
-
 use strict;
 use warnings;
 
-use Test::More tests => 76;
-
-use File::Spec;
-use Data::Dumper;
-use XML::Twig;
-
-use lib File::Spec->catdir( 't', 'lib' );
-
-use Dancer qw/:tests/;
-
-set template => 'template_flute';
-set views => 't/views';
-set log => 'debug';
-set logger => 'console';
-set layout => 'main';
-
-use MyTestApp;
-use Dancer::Test;
-
-my $resp = dancer_response GET => '/';
-
-response_status_is $resp, 200, "GET / is found";
-response_content_like $resp, qr/Hello world/;
-
-$resp = dancer_response GET => '/register';
-response_status_is $resp, 200, "GET /register is found";
-response_content_like $resp, qr/input name="password"/;
-
-my %form = (
-            email => 'pallino',
-            password => '1234',
-            verify => '5678',
-           );
-
-$resp = dancer_response(POST => '/register', { body =>  { %form } });
-
-diag "Checking form keyword and stickyness";
-response_status_is $resp, 200, "POST /register found";
-check_sticky_form($resp, %form);
-
-$resp = dancer_response(POST => '/login', { body =>  { %form } });
-
-diag "Checking form keyword and stickyness";
-response_status_is($resp, 200, "POST /login found")|| exit;
-check_sticky_form($resp, %form);
-
-my %other_form = (
-                  email_2 => 'pinco',
-                  password_2 => 'pazzw0rd',
-                 );
-
-# unclear why we have to repeat the request twice. The first call gets
-# empty params. It seems more a Dancer::Test bug, because from the app it works.
-$resp = dancer_response(POST => '/login', { body => { login => "Login", %other_form } });
-$resp = dancer_response(POST => '/login', { body => { login => "Login", %other_form } });
-
-foreach my $f (keys %other_form) {
-    my $v = $other_form{$f};
-    response_content_like $resp, qr/<input[^>]*name="\Q$f\E"[^>]*value="\Q$v\E"/,
-      "Found form field $f => $v";
+BEGIN {
+    $ENV{DANCER_CONFDIR} = 't';
 }
 
+use Test::More;
+use Test::Deep;
+use Plack::Test;
+use HTTP::Request::Common;
+use HTTP::Cookies;
+use XML::Twig;
 
+use lib 't/lib';
+use MyTestApp;
 
-set logger => 'capture';
+sub check_sticky_form {
+    my ( $res, %params ) = @_;
+    foreach my $f ( keys %params ) {
+        my $v = $params{$f};
+        like $res->content,
+          qr/<input[^>]*name="\Q$f\E"[^>]*value="\Q$v\E"/,
+          "Found form field $f => $v";
+    }
+}
 
-response_status_is [GET => '/bugged_single'] => 200, "route to bugged single found";
+my $url  = 'http://localhost';
+my $jar  = HTTP::Cookies->new();
+my $test = Plack::Test->create( MyTestApp->to_app );
+my $trap = MyTestApp->dancer_app->logger_engine->trapper;
 
-response_status_is [GET => '/bugged_multiple'] => 200, "route to bugged multiple found";
+my $res = $test->request( GET "$url/" );
+ok $res->is_success, "GET / successful" or diag explain $trap->read;
+$jar->extract_cookies($res);
+like $res->content, qr/Hello world/, "we got Hello world";
 
-response_status_is [POST => '/bugged_single'] => 200, "route to bugged single found";
+my $req = GET "$url/register";
+$jar->add_cookie_header($req);
+$res = $test->request($req);
+ok $res->is_success, "GET /register successful" or diag explain $trap->read;
+like $res->content, qr/input name="password"/,
+  "we got the password field in the content";
 
-response_status_is [POST => '/bugged_multiple'] => 200, "route to bugged multiple found";
+my %form = (
+    email    => 'pallino',
+    password => '1234',
+    verify   => '5678',
+);
 
-is_deeply(read_logs, [
-                      {
-                       'level' => 'debug',
-                       'message' => 'Missing form parameters for forms registration'
-                      },
-                      {
-                       'level' => 'debug',
-                       'message' => 'Missing form parameters for forms login, registration'
-                      },
-                      {
-                       'level' => 'debug',
-                       'message' => 'Missing form parameters for forms registration'
-                      },
-                      {
-                       'level' => 'debug',
-                       'message' => 'Missing form parameters for forms login, registration'
-                      },
-                     ], "Warning logged in debug as expected");
+$req = POST "$url/register", \%form;
+$jar->add_cookie_header($req);
+$res = $test->request($req);
+ok $res->is_success, "POST /register successful" or diag explain $trap->read;
+note "Checking form keyword and stickyness";
+check_sticky_form( $res, %form );
 
+$req = POST "$url/login", \%form;
+$jar->add_cookie_header($req);
+$res = $test->request($req);
+ok $res->is_success, "POST /login successful" or diag explain $trap->read;
+note "Checking form keyword and stickyness";
+check_sticky_form( $res, %form );
 
+my %other_form = (
+    email_2    => 'pinco',
+    password_2 => 'pazzw0rd',
+);
+
+$req = POST "$url/login", { login => "Login", %other_form };
+$jar->add_cookie_header($req);
+$res = $test->request($req);
+ok $res->is_success, "POST /login successful" or diag explain $trap->read;
+note "Checking form keyword and stickyness";
+check_sticky_form( $res, %other_form );
+
+$req = GET "$url/bugged_single";
+$jar->add_cookie_header($req);
+$res = $test->request($req);
+ok $res->is_success, "GET /bugged_single successful"
+  or diag explain $trap->read;
+
+$req = GET "$url/bugged_multiple";
+$jar->add_cookie_header($req);
+$res = $test->request($req);
+ok $res->is_success, "GET /bugged_multiple successful"
+  or diag explain $trap->read;
+
+$req = POST "$url/bugged_single";
+$jar->add_cookie_header($req);
+$res = $test->request($req);
+ok $res->is_success, "POST /bugged_single successful"
+  or diag explain $trap->read;
+
+$req = POST "$url/bugged_multiple";
+$jar->add_cookie_header($req);
+$res = $test->request($req);
+ok $res->is_success, "POST /bugged_multiple successful"
+  or diag explain $trap->read;
+
+my $logs = $trap->read;
+cmp_deeply $logs,
+  superbagof(
+    {
+        formatted => ignore(),
+        'level'   => 'debug',
+        'message' => 'Missing form parameters for forms registration'
+    },
+    {
+        formatted => ignore(),
+        'level'   => 'debug',
+        'message' => 'Missing form parameters for forms login, registration'
+    },
+    {
+        formatted => ignore(),
+        'level'   => 'debug',
+        'message' => 'Missing form parameters for forms registration'
+    },
+    {
+        formatted => ignore(),
+        'level'   => 'debug',
+        'message' => 'Missing form parameters for forms login, registration'
+    },
+  ),
+  "Warning logged in debug as expected"
+  or diag explain $logs;
 
 # values for first form
 
 my %multiple_first = (
-                      emailtest => "Fritz",
-                      passwordtest => "Frutz",
-                      verifytest => "Frotz",
-                     );
+    emailtest    => "Fritz",
+    passwordtest => "Frutz",
+    verifytest   => "Frotz",
+);
 
 # values for second form
 
 my %multiple_second = (
-                       emailtest_2 => "Hanz",
-                       passwordtest_2 => "Hunz",
-                      );
+    emailtest_2    => "Hanz",
+    passwordtest_2 => "Hunz",
+);
 
-# $resp 
+$req = GET "$url/multiple";
+$jar->add_cookie_header($req);
+$res = $test->request($req);
+ok $res->is_success, "GET /multiple successful" or diag explain $trap->read;
+note "Checking if the form is clean";
+check_sticky_form(
+    $res,
+    emailtest      => "",
+    passwordtest   => "",
+    verifytest     => "",
+    emailtest_2    => "",
+    passwordtest_2 => ""
+);
 
+$trap->read;
+$req = POST "$url/multiple", { register => 1, %multiple_first };
+$jar->add_cookie_header($req);
+$res = $test->request($req);
+ok $res->is_success,
+  'POST /multiple successful { register => 1, %multiple_first }'
+  or diag explain $trap->read;
+check_sticky_form( $res, %multiple_first );
 
-$resp = dancer_response (GET => '/multiple');
-diag "Checking if the form is clean";
-check_sticky_form($resp,
-                  emailtest => "",
-                  passwordtest => "",
-                  verifytest => "",
-                  emailtest_2 => "",
-                  passwordtest_2 => "");
-                  
-diag "Checking multiple forms";
+$trap->read;
+$req = GET "$url/multiple";
+$jar->add_cookie_header($req);
+$res = $test->request($req);
+ok $res->is_success, "GET /multiple successful" or diag explain $trap->read;
+check_sticky_form( $res, %multiple_first );
 
-$resp = dancer_response (POST => '/multiple', { body => { register => 1, %multiple_first}});
-check_sticky_form($resp, %multiple_first);
+$trap->read;
+$req = POST "$url/multiple", { login => 1, %multiple_second };
+$jar->add_cookie_header($req);
+$res = $test->request($req);
+ok $res->is_success,
+  'POST /multiple successful { login => 1, %multiple_second }'
+  or diag explain $trap->read;
+check_sticky_form( $res, %multiple_first, %multiple_second );
 
-$resp = dancer_response (GET => '/multiple');
-check_sticky_form($resp, %multiple_first);
-
-$resp = dancer_response (POST => '/multiple', { body => { login => 1, %multiple_second}});
-check_sticky_form($resp, %multiple_first, %multiple_second);
-
-$resp = dancer_response (GET => '/multiple');
-check_sticky_form($resp, %multiple_first, %multiple_second);
+$trap->read;
+$req = GET "$url/multiple";
+$jar->add_cookie_header($req);
+$res = $test->request($req);
+ok $res->is_success, "GET /multiple successful" or diag explain $trap->read;
+check_sticky_form( $res, %multiple_first, %multiple_second );
 
 $multiple_second{passwordtest_2} = "xXxXx";
 
-$resp = dancer_response (POST => '/multiple', { body => { login => 1, %multiple_second}});
-check_sticky_form($resp, %multiple_first, %multiple_second);
+$trap->read;
+$req = POST "$url/multiple", { login => 1, %multiple_second };
+$jar->add_cookie_header($req);
+$res = $test->request($req);
+ok $res->is_success,
+'POST /multiple successful { login => 1, %multiple_second, passwordtest_2 => "xXxXx" }'
+  or diag explain $trap->read;
+check_sticky_form( $res, %multiple_first, %multiple_second );
 
-$resp = dancer_response (GET => '/multiple');
-check_sticky_form($resp, %multiple_first, %multiple_second);
+$trap->read;
+$req = GET "$url/multiple";
+$jar->add_cookie_header($req);
+$res = $test->request($req);
+ok $res->is_success, "GET /multiple successful" or diag explain $trap->read;
+check_sticky_form( $res, %multiple_first, %multiple_second );
 
-
+note "Checking multiple forms";
 %multiple_first = (
-                   first_name => "Pippo",
-                   last_name => "Pluto",
-                  );
+    first_name => "Pippo",
+    last_name  => "Pluto",
+);
 %multiple_second = (
-                    gender => "Mixed up",
-                    address => "via del pioppo",
-                   );
+    gender  => "Mixed up",
+    address => "via del pioppo",
+);
 
+$trap->read;
+$req = GET "$url/checkout";
+$jar->add_cookie_header($req);
+$res = $test->request($req);
+ok $res->is_success, "GET /checkout successful" or diag explain $trap->read;
 
-$resp = dancer_response ( GET => '/checkout' );
-$resp = dancer_response ( POST => '/checkout', { body => { submit => 1, %multiple_first }});
-check_sticky_form($resp, %multiple_first, gender => "", address => "");
-$resp = dancer_response ( POST => '/checkout', { body => { submit_details => 1,
-                                                           %multiple_second }});
-check_sticky_form($resp, %multiple_first, %multiple_second);
-$resp = dancer_response ( GET => '/checkout' );
-$resp = dancer_response (POST => '/checkout', { body => {
-                                                         submit => 1,
-                                                         %multiple_first,
-                                                         day => 15,
-                                                        }
-                                              });
-check_sticky_form($resp, %multiple_first, %multiple_second);
-response_content_like $resp, qr/<option selected="selected" value="15">/;
-$resp = dancer_response ( POST => '/checkout', { body => { submit_details => 1,
-                                                           %multiple_second,
-                                                           year => 2019,
-                                                         }});
-response_content_like $resp, qr/<option selected="selected" value="15">/,
+$trap->read;
+$req = POST "$url/checkout", { submit => 1, %multiple_first };
+$jar->add_cookie_header($req);
+$res = $test->request($req);
+ok $res->is_success,
+  'POST /checkout { submit => 1, %multiple_first } successful'
+  or diag explain $trap->read;
+check_sticky_form( $res, %multiple_first, gender => "", address => "" );
+
+$trap->read;
+$req = POST "$url/checkout", { submit_details => 1, %multiple_second };
+$jar->add_cookie_header($req);
+$res = $test->request($req);
+ok $res->is_success,
+  'POST /checkout { submit_details => 1, %multiple_second } successful'
+  or diag explain $trap->read;
+check_sticky_form( $res, %multiple_first, %multiple_second );
+
+$trap->read;
+$req = GET "$url/checkout";
+$jar->add_cookie_header($req);
+$res = $test->request($req);
+ok $res->is_success, "GET /checkout successful" or diag explain $trap->read;
+
+$trap->read;
+$req = POST "$url/checkout", { submit => 1, %multiple_first, day => 15 };
+$jar->add_cookie_header($req);
+$res = $test->request($req);
+ok $res->is_success,
+  'POST /checkout { submit => 1, %multiple_first, day => 15 } successful'
+  or diag explain $trap->read;
+check_sticky_form( $res, %multiple_first, %multiple_second );
+like $res->content, qr/<option selected="selected" value="15">/,
+  "we also have day 15 selected";
+
+$trap->read;
+$req = POST "$url/checkout",
+  { submit_details => 1, %multiple_second, year => 2019 };
+$jar->add_cookie_header($req);
+$res = $test->request($req);
+ok $res->is_success,
+'POST /checkout { submit_details => 1, %multiple_second, year => 2019 } successful'
+  or diag explain $trap->read;
+
+like $res->content, qr/<option selected="selected" value="15">/,
   "Found sticky day";
-response_content_like $resp, qr/<option selected="selected" value="2019">/,
+like $res->content, qr/<option selected="selected" value="2019">/,
   "Found sticky year";
 
-diag "Trying out of range values";
+note "Trying out of range values";
 
 $multiple_first{first_name} = "Topolino";
-$multiple_second{gender} = "Male";
+$multiple_second{gender}    = "Male";
 
-$resp = dancer_response ( GET => '/checkout' );
-$resp = dancer_response (POST => '/checkout', { body => {
-                                                         submit => 1,
-                                                         %multiple_first,
-                                                         day => 60,
-                                                        }
-                                              });
-$resp = dancer_response ( GET => '/checkout' );
+$trap->read;
+$req = GET "$url/checkout";
+$jar->add_cookie_header($req);
+$res = $test->request($req);
+ok $res->is_success, "GET /checkout successful" or diag explain $trap->read;
 
-$resp = dancer_response ( POST => '/checkout', { body => { submit_details => 1,
-                                                           %multiple_second,
-                                                           year => 2050,
-                                                         }});
+$trap->read;
+$req = POST "$url/checkout", { submit => 1, %multiple_first, day => 60 };
+$jar->add_cookie_header($req);
+$res = $test->request($req);
+ok $res->is_success,
+  'POST /checkout { submit => 1, %multiple_first, day => 60 } successful'
+  or diag explain $trap->read;
 
-check_sticky_form($resp, %multiple_first, %multiple_second);
+$trap->read;
+$req = GET "$url/checkout";
+$jar->add_cookie_header($req);
+$res = $test->request($req);
+ok $res->is_success, "GET /checkout successful" or diag explain $trap->read;
 
-response_content_unlike $resp, qr/<option selected="selected"/,
+$trap->read;
+$req = POST "$url/checkout",
+  { submit_details => 1, %multiple_second, year => 2050 };
+$jar->add_cookie_header($req);
+$res = $test->request($req);
+ok $res->is_success,
+'POST /checkout { submit_details => 1, %multiple_second, year => 2050 } successful'
+  or diag explain $trap->read;
+
+check_sticky_form( $res, %multiple_first, %multiple_second );
+
+unlike $res->content, qr/<option selected="selected"/,
   "Options are not selected";
 
+$trap->read;
+$req = GET "$url/iter";
+$jar->add_cookie_header($req);
+$res = $test->request($req);
+ok $res->is_success, "GET /iter successful" or diag explain $trap->read;
 
+like $res->content,
+  qr{<option value="b">a</option><option value="d">c</option>},
+  "Found the dropdown";
 
-$resp = dancer_response GET => '/iter';
+$trap->read;
+$req = GET "$url/double-dropdown-noform";
+$jar->add_cookie_header($req);
+$res = $test->request($req);
+ok $res->is_success, "GET /double-dropdown-noform successful"
+  or diag explain $trap->read;
 
-response_status_is $resp, 200, "GET / is found";
-response_content_like $resp, qr{<option value="b">a</option><option value="d">c</option>}, "Found the dropdown";
+like $res->content,
+qr{<select id="role" name="role"><option value="">Please select role</option><option>1</option><option>2</option><option>3</option><option>4</option></select>},
+  "No duplicate for a dropdown without form";
 
-$resp = dancer_response GET => '/double-dropdown-noform';
+$trap->read;
+$req = GET "$url/double-dropdown";
+$jar->add_cookie_header($req);
+$res = $test->request($req);
+ok $res->is_success, "GET /double-dropdown successful"
+  or diag explain $trap->read;
 
-response_content_like $resp,
-  qr{<select id="role" name="role"><option value="">Please select role</option><option>1</option><option>2</option><option>3</option><option>4</option></select>}, "No duplicate for a dropdown without form";
-
-$resp = dancer_response GET => '/double-dropdown';
-
-response_content_like $resp,
-  qr{<select id="role" name="role"><option value="">Please select role</option><option>1</option><option>2</option><option>3</option><option>4</option></select>},
+like $res->content,
+qr{<select id="role" name="role"><option value="">Please select role</option><option>1</option><option>2</option><option>3</option><option>4</option></select>},
   "No duplicate for a dropdown with a form";
 
 diag "Testing entities with $XML::Twig::VERSION";
 
-$resp = dancer_response GET => '/ampersand';
+$trap->read;
+$req = GET "$url/ampersand";
+$jar->add_cookie_header($req);
+$res = $test->request($req);
+ok $res->is_success, "GET /ampersand successful" or diag explain $trap->read;
 
-response_status_is $resp, 200, "GET /ampersand is found";
-response_content_like $resp,
-  qr{<select class="countries"><option>Select</option><option>Trinidad&amp;Tobago</option></select>},
+like $res->content,
+qr{<select class="countries"><option>Select</option><option>Trinidad&amp;Tobago</option></select>},
   "Testing ampersand injected from data";
 
-sub check_sticky_form {
-    my ($res, %params) = @_;
-    foreach my $f (keys %params) {
-        my $v = $params{$f};
-        response_content_like $resp, qr/<input[^>]*name="\Q$f\E"[^>]*value="\Q$v\E"/,
-          "Found form field $f => $v";
-    }
-}
+done_testing;

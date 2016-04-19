@@ -1,9 +1,13 @@
 package MyTestApp;
 
-use Dancer ':syntax';
-use Dancer::Plugin::Form;
+use Dancer2;
+use Dancer2::Plugin::TemplateFlute;
 
 get '/' => sub {
+    # this is the 1st request made during tests so make sure session is
+    # created so that a session cooke is returned that the test can then
+    # apply to all subsequent sessions.
+    session foo => 'bar';
     template 'index';
 };
 
@@ -37,26 +41,20 @@ any [qw/get post/] => '/bugged_multiple' => sub {
 };
 
 any [qw/get post/] => '/multiple' => sub {
-    my $login = form('logintest');
-    debug to_dumper({params});
+    my $login;
+    debug "params: ", to_dumper({params}) if request->is_post;
     if (params->{login}) {
-        my %vals = %{$login->values};
-        # VALIDATE %vals here
-        $login->fill(\%vals);
+        $login = form('logintest', source => 'body');
     }
     else {
-        # pick from session
-        $login->fill;
+        $login = form('logintest', source => 'session');
     }
-    my $registration = form('registrationtest');
+    my $registration;
     if (params->{register}) {
-        my %vals = %{$registration->values};
-        # VALIDATE %vals here
-        $registration->fill(\%vals);
+        $registration = form('registrationtest', source => 'body');
     }
     else {
-        # pick from session
-        $registration->fill;
+        $registration = form('registrationtest', source => 'session');
     }
     template multiple => { form => [ $login, $registration ] };
 };
@@ -69,22 +67,20 @@ any [qw/post get/] => '/checkout' => sub {
     for (2012..2020) {
         push @years, { value => $_, label => "Year $_" };
     }
-    my $form = form('giftinfo');
+    my $form;
     if (params->{submit}) {
-        my %values = %{$form->values};
-        $form->fill(\%values);
+        $form = form('giftinfo', source => 'body' );
     }
     else {
-        $form->fill;
+        $form = form('giftinfo', source => 'session' );
     }
 
-    my $detform = form('giftdetails');
+    my $detform;
     if (params->{submit_details}) {
-        my %values = %{$detform->values};
-        $detform->fill(\%values);
+        $detform = form('giftdetails', source => 'body' );
     }
     else {
-        $detform->fill;
+        $detform = form('giftdetails', source => 'session' );
     }
 
     template 'checkout-giftinfo' => {
