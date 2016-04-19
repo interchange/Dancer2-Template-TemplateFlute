@@ -154,8 +154,6 @@ sub render ($$$) {
     if ( %template_iterators = $flute->template()->iterators ) {
         my $selector;
 
-        print STDERR "****** HERE ******\n";
-
         for my $name ( keys %template_iterators ) {
             if ( my $value = $self->iterators->{$name} ) {
                 %parms = %$value;
