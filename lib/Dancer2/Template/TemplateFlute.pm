@@ -6,11 +6,11 @@ Dancer2::Template::TemplateFlute - Template::Flute wrapper for Dancer2
 
 =head1 VERSION
 
-Version 0.0150
+Version 0.200
 
 =cut
 
-our $VERSION = '0.0150';
+our $VERSION = '0.200';
 
 use Carp qw/croak/;
 use Dancer2::Core::Types;
@@ -184,8 +184,7 @@ sub render ($$$) {
                 eval { $iterators{$name} = $class->new(%parms); };
 
                 if ($@) {
-                    croak
-"Failed to instantiate class $class for iterator $name: $@\n";
+                    croak "Failed to instantiate class $class for iterator $name: $@\n";
                 }
 
                 $flute->specification->set_iterator( $name, $iterators{$name} );
@@ -385,8 +384,7 @@ named C<cids>. See L<Template::Flute> for them.
 Sometimes you want to pass values to a template which are objects, but
 don't have an accessor, so they should be treated like hashrefs instead.
 
-By default, the class C<Dancer2::Session::Abstract> is treated this way. You
-can specify additional classes with the following syntax:
+You can specify classes with the following syntax:
 
   engines:
     template_flute:
@@ -504,11 +502,11 @@ on by default. You can silence the logs by setting:
 =head2 FORMS
 
 Dancers::Template::TemplateFlute has a form plugin
-L<Dancer::Plugin::TemplateFlute> which must be installed in order to use
+L<Dancer2::Plugin::TemplateFlute> which must be installed in order to use
 L<Template::Flute> forms.
 
 The token C<form> is reserved for forms. It can be a single
-L<Dancer2::Plugin::TeplateFlute> form object or an arrayref of
+L<Dancer2::Plugin::TemplateFlute> form object or an arrayref of
 L<Dancer2::Plugin::TemplateFlute> form objects.
 
 =head3 Typical usage for a single form.
@@ -551,10 +549,11 @@ L<Dancer2::Plugin::TemplateFlute> form objects.
 =head4 Code
 
   any [qw/get post/] => '/register' => sub {
-      my $form = form('registration');
+      my $form = request->is_post
+          ? form('registration', source => 'body')
+          : form('registration', source => 'session' );
       my %values = %{$form->values};
       # VALIDATE, filter, etc. the values
-      $form->fill(\%values);
       template register => {form => $form };
   };
 
@@ -623,28 +622,29 @@ L<Dancer2::Plugin::TemplateFlute> form objects.
 =head4 Code
 
   any [qw/get post/] => '/multiple' => sub {
-      my $login = form('logintest');
+      my ( $login_form, $registration_form );
       debug to_dumper({params});
+
       if (params->{login}) {
+          $login_form = form('logintest', source => 'parameters');
           my %vals = %{$login->values};
           # VALIDATE %vals here
-          $login->fill(\%vals);
       }
       else {
           # pick from session
-          $login->fill;
+          $login_form = form('logintest', source => 'session');
       }
-      my $registration = form('registrationtest');
+
       if (params->{register}) {
+          $registration_form = form('registrationtest', source => 'parameters');
           my %vals = %{$registration->values};
           # VALIDATE %vals here
-          $registration->fill(\%vals);
       }
       else {
           # pick from session
-          $registration->fill;
+          $registration_form = form('registrationtest', source => 'session');
       }
-      template multiple => { form => [ $login, $registration ] };
+      template multiple => { form => [ $login_form, $registration_form ] };
   };
 
 =head1 METHODS
@@ -659,48 +659,48 @@ Renders template TEMPLATE with values from TOKENS.
 
 =head1 SEE ALSO
 
-L<Dancer>, L<Template::Flute>
+L<Dancer2>, L<Template::Flute>
 
 =head1 AUTHOR
 
 Stefan Hornburg (Racke), <racke@linuxia.de>
 
+Conversion to Dancer2:
+
+Peter Mottram (SysPete), <peter@sysnix.com>
+
 =head1 BUGS
 
-Please report any bugs or feature requests to C<bug-template-flute at rt.cpan.org>, or through
-the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Template-Flute>.
+Please report any bugs or feature requests via the GitHub issue tracker at:
+L<https://github.com/interchange/Dancer2-Template-TemplateFlute/issues>
 
 =head1 SUPPORT
 
 You can find documentation for this module with the perldoc command.
 
-    perldoc Template::Flute
+    perldoc Dancer2::Template::TemplateFlute
 
 You can also look for information at:
 
 =over 4
 
-=item * RT: CPAN's request tracker
-
-L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=Dancer-Template-TemplateFlute>
-
 =item * AnnoCPAN: Annotated CPAN documentation
 
-L<http://annocpan.org/dist/Dancer-Template-TemplateFlute>
+L<http://annocpan.org/dist/Dancer2-Template-TemplateFlute>
 
 =item * CPAN Ratings
 
-L<http://cpanratings.perl.org/d/Dancer-Template-TemplateFlute>
+L<http://cpanratings.perl.org/d/Dancer2-Template-TemplateFlute>
 
-=item * Search CPAN
+=item * meta::cpan
 
-L<http://search.cpan.org/dist/Dancer-Template-TemplateFlute/>
+L<https://metacpan.org/pod/Dancer2::Template::TemplateFlute>
 
 =back
 
 =head1 LICENSE AND COPYRIGHT
 
-Copyright 2011-2015 Stefan Hornburg (Racke) <racke@linuxia.de>.
+Copyright 2011-2016 Stefan Hornburg (Racke) <racke@linuxia.de>.
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of either: the GNU General Public License as published
