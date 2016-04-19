@@ -1,11 +1,11 @@
 NAME
-    Dancer::Template::TemplateFlute - Template::Flute wrapper for Dancer
+    Dancer2::Template::TemplateFlute - Template::Flute wrapper for Dancer2
 
 VERSION
-    Version 0.0150
+    Version 0.200
 
 DESCRIPTION
-    This class is an interface between Dancer's template engine abstraction
+    This class is an interface between Dancer2's template engine abstraction
     layer and the Template::Flute module.
 
     In order to use this engine, use the template setting:
@@ -56,23 +56,22 @@ DESCRIPTION
 
   ADJUSTING URIS
     We automatically adjust links in the templates if the value of
-    `request-'path> is different from `request-'path_info>.
+    "request-"path> is different from "request-"path_info>.
 
   EMBEDDING IMAGES IN EMAILS
-    If you pass a value named `email_cids', which should be an empty hash
-    reference, all the images `src' attributes will be rewritten using the
+    If you pass a value named "email_cids", which should be an empty hash
+    reference, all the images "src" attributes will be rewritten using the
     CIDs, and the reference will be populated with an hashref, as documented
     in Template::Flute
 
     Further options for the CIDs should be passed in an optional value named
-    `cids'. See Template::Flute for them.
+    "cids". See Template::Flute for them.
 
   DISABLE OBJECT AUTODETECTION
     Sometimes you want to pass values to a template which are objects, but
     don't have an accessor, so they should be treated like hashrefs instead.
 
-    By default, the class `Dancer::Session::Abstract' is treated this way.
-    You can specify additional classes with the following syntax:
+    You can specify classes with the following syntax:
 
       engines:
         template_flute:
@@ -81,7 +80,7 @@ DESCRIPTION
               - My::Class1
               - My::Class2
 
-    The class matching is checked by Template::Flute with `isa', so any
+    The class matching is checked by Template::Flute with "isa", so any
     parent class would do.
 
   LOCALIZATION
@@ -95,8 +94,8 @@ DESCRIPTION
     Be sure to return the argument verbatim if the module is not able to
     translate the string.
 
-    Example configuration, assuming the class `MyApp::Lexicon' provides a
-    `try_to_translate' method.
+    Example configuration, assuming the class "MyApp::Lexicon" provides a
+    "try_to_translate" method.
 
       engines:
         template_flute:
@@ -107,7 +106,7 @@ DESCRIPTION
     A class could be something like this:
 
       package MyTestApp::Lexicon;
-      use Dancer ':syntax';
+      use Dancer2;
 
       sub new {
           my $class = shift;
@@ -157,12 +156,12 @@ DESCRIPTION
 
      MyApp::Lexicon->new(append => 'X', prepend => 'Y', lexicon => 'path/to/po/files');
 
-    when the engine is initialized, and will call the `localize' method on
+    when the engine is initialized, and will call the "localize" method on
     it to get the translations.
 
   DEBUG TOOLS
-    If you set `check_dangling' in the engine stanza, the specification will
-    run a check (using the Template::Flute::Specification's `dangling'
+    If you set "check_dangling" in the engine stanza, the specification will
+    run a check (using the Template::Flute::Specification's "dangling"
     method) against the template to see if you have elements of the
     specifications which are not bound to any HTML elements.
 
@@ -175,7 +174,7 @@ DESCRIPTION
         template_flute:
           check_dangling: 1
 
-    When the environment is set to `development' this feature is turned on
+    When the environment is set to "development" this feature is turned on
     by default. You can silence the logs by setting:
 
       engines:
@@ -183,15 +182,16 @@ DESCRIPTION
           disable_check_dangling: 1
 
   FORMS
-    Dancer::Template::TemplateFlute includes a form plugin
-    Dancer::Plugin::Form, which supports Template::Flute forms.
+    Dancers::Template::TemplateFlute has a form plugin
+    Dancer2::Plugin::TemplateFlute which must be installed in order to use
+    Template::Flute forms.
 
-    The token `form' is reserved for forms. It can be a single
-    Dancer::Plugin::Form object or an arrayref of Dancer::Plugin::Form
-    objects.
+    The token "form" is reserved for forms. It can be a single
+    Dancer2::Plugin::TemplateFlute form object or an arrayref of
+    Dancer2::Plugin::TemplateFlute form objects.
 
-    Typical usage for a single form.
-    XML Specification
+   Typical usage for a single form.
+   XML Specification
       <specification>
       <form name="registration" link="name">
       <field name="email"/>
@@ -200,7 +200,7 @@ DESCRIPTION
       </form>
       </specification>
 
-    HTML
+   HTML
       <form class="frm-default" name="registration" action="/register" method="POST">
             <fieldset>
               <div class="reg-info">Info</div>
@@ -224,17 +224,18 @@ DESCRIPTION
             </fieldset>
       </form>
 
-    Code
+   Code
       any [qw/get post/] => '/register' => sub {
-          my $form = form('registration');
+          my $form = request->is_post
+              ? form('registration', source => 'body')
+              : form('registration', source => 'session' );
           my %values = %{$form->values};
           # VALIDATE, filter, etc. the values
-          $form->fill(\%values);
           template register => {form => $form };
       };
 
-    Usage example for multiple forms
-    Specification
+   Usage example for multiple forms
+   Specification
       <specification>
       <form name="registrationtest" link="name">
       <field name="emailtest"/>
@@ -247,7 +248,7 @@ DESCRIPTION
       </form>
       </specification>
 
-    HTML
+   HTML
       <h1>Register</h1>
       <form class="frm-default" name="registrationtest" action="/multiple" method="POST">
             <fieldset>
@@ -291,30 +292,31 @@ DESCRIPTION
             </fieldset>
       </form>
 
-    Code
+   Code
       any [qw/get post/] => '/multiple' => sub {
-          my $login = form('logintest');
+          my ( $login_form, $registration_form );
           debug to_dumper({params});
+
           if (params->{login}) {
+              $login_form = form('logintest', source => 'parameters');
               my %vals = %{$login->values};
               # VALIDATE %vals here
-              $login->fill(\%vals);
           }
           else {
               # pick from session
-              $login->fill;
+              $login_form = form('logintest', source => 'session');
           }
-          my $registration = form('registrationtest');
+
           if (params->{register}) {
+              $registration_form = form('registrationtest', source => 'parameters');
               my %vals = %{$registration->values};
               # VALIDATE %vals here
-              $registration->fill(\%vals);
           }
           else {
               # pick from session
-              $registration->fill;
+              $registration_form = form('registrationtest', source => 'session');
           }
-          template multiple => { form => [ $login, $registration ] };
+          template multiple => { form => [ $login_form, $registration_form ] };
       };
 
 METHODS
@@ -325,38 +327,41 @@ METHODS
     Renders template TEMPLATE with values from TOKENS.
 
 SEE ALSO
-    Dancer, Template::Flute
+    Dancer2, Template::Flute
 
 AUTHOR
     Stefan Hornburg (Racke), <racke@linuxia.de>
 
+    Conversion to Dancer2:
+
+    Peter Mottram (SysPete), <peter@sysnix.com>
+
 BUGS
-    Please report any bugs or feature requests to `bug-template-flute at
-    rt.cpan.org', or through the web interface at
-    http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Template-Flute.
+    Please report any bugs or feature requests via the GitHub issue tracker
+    at:
+    <https://github.com/interchange/Dancer2-Template-TemplateFlute/issues>
 
 SUPPORT
     You can find documentation for this module with the perldoc command.
 
-        perldoc Template::Flute
+        perldoc Dancer2::Template::TemplateFlute
 
     You can also look for information at:
 
-    * RT: CPAN's request tracker
-        http://rt.cpan.org/NoAuth/Bugs.html?Dist=Dancer-Template-TemplateFlu
-        te
+    *   AnnoCPAN: Annotated CPAN documentation
 
-    * AnnoCPAN: Annotated CPAN documentation
-        http://annocpan.org/dist/Dancer-Template-TemplateFlute
+        <http://annocpan.org/dist/Dancer2-Template-TemplateFlute>
 
-    * CPAN Ratings
-        http://cpanratings.perl.org/d/Dancer-Template-TemplateFlute
+    *   CPAN Ratings
 
-    * Search CPAN
-        http://search.cpan.org/dist/Dancer-Template-TemplateFlute/
+        <http://cpanratings.perl.org/d/Dancer2-Template-TemplateFlute>
+
+    *   meta::cpan
+
+        <https://metacpan.org/pod/Dancer2::Template::TemplateFlute>
 
 LICENSE AND COPYRIGHT
-    Copyright 2011-2015 Stefan Hornburg (Racke) <racke@linuxia.de>.
+    Copyright 2011-2016 Stefan Hornburg (Racke) <racke@linuxia.de>.
 
     This program is free software; you can redistribute it and/or modify it
     under the terms of either: the GNU General Public License as published
