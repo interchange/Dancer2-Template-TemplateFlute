@@ -199,7 +199,8 @@ sub render ($$$) {
             $self->_tf_manage_forms( $flute, $tokens, @forms );
         }
         else {
-            Dancer::Logger::debug( 'Missing form parameters for forms '
+            $self->log_cb->( 'debug',
+                'Missing form parameters for forms '
                   . join( ", ", sort map { $_->name } @forms ) );
         }
     }
@@ -207,9 +208,9 @@ sub render ($$$) {
         my $form_name =
           blessed( $tokens->{form} ) ? $tokens->{form}->name : $tokens->{form};
 
-        Dancer::Logger::debug(
-"Form $form_name passed, but no forms found in the template $template."
-        );
+        $self->log_cb->( 'debug',
+                "Form $form_name passed, "
+              . "but no forms found in the template $template." );
     }
 
     $html = $flute->process();
@@ -248,7 +249,6 @@ sub _tf_manage_forms {
             if (   $form_name eq 'main'
                 or $form_name eq $form->name )
             {
-# Dancer::Logger::debug("Filling the template form with" . Dumper($tokens->{form}->values));
                 $self->_tf_fill_forms( $flute, $tokens->{form}, $form,
                     $tokens );
             }
@@ -256,8 +256,6 @@ sub _tf_manage_forms {
         else {
             my $found = 0;
             foreach my $form (@forms) {
-
-# Dancer::Logger::debug("Filling the template form with" . Dumper($tokens->{form}->values));
                 if ( $form_name eq $form->name ) {
                     $self->_tf_fill_forms( $flute, $tokens->{form}, $form,
                         $tokens );
@@ -265,8 +263,8 @@ sub _tf_manage_forms {
                 }
             }
             if ( $found != 1 ) {
-                Dancer::Logger::error(
-"Multiple form are not being managed correctly, found $found corresponding forms, but we expected just one!"
+                $self->log_cb->(
+                    'error', "Multiple form are not being managed correctly, found $found corresponding forms, but we expected just one!"
                 );
             }
         }
@@ -311,10 +309,7 @@ sub _tf_fill_forms {
     $passed_form->set_fields( [ map { $_->{name} } @{ $form->fields() } ] );
     $form->fill( $passed_form->values );
 
-    #if ( Dancer2::Config::settings->{session} ) {
     $passed_form->to_session;
-
-    #}
 }
 
 =head1 DESCRIPTION
