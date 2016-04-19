@@ -1,4 +1,14 @@
-Revision history for Dancer::Template::TemplateFlute
+Revision history for Dancer2::Template::TemplateFlute
+
+0.200 Tue 19 Apr 17:03:20 CEST 2016
+
+    [DANCER2]
+
+    * First version of original Dancer module reworked for Dancer2
+      (Peter Mottram)
+
+
+Original Dancer::Template::TemplateFlute revision history
 
 0.0150 Fri Jul 31 11:28:20 2015 EEST
 
