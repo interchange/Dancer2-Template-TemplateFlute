@@ -1,48 +1,60 @@
-#! perl
-
 use strict;
 use warnings;
 
+BEGIN {
+    $ENV{DANCER_ENVIRONMENT} = 'i18n';
+}
+
 use Test::More;
-use Dancer qw/:tests/;
+use Plack::Test;
+use HTTP::Request::Common;
+use HTTP::Cookies;
 
-use File::Spec;
-use Data::Dumper;
+{
 
-use lib File::Spec->catdir( 't', 'lib' );
+    package TestApp;
+    use Dancer2;
+    use lib 't/lib';
+    use MyTestApp::Lexicon;
 
-set template => 'template_flute';
-set views => File::Spec->catdir('t', 'views');
-set log => 'debug';
-set logger => 'console';
-set session => 'Simple';
-# here this isn't picked up. Set in the module.
-# set engines => { template_flute => { i18n => { class => 'MyTestApp::Lexicon' } } };
+    get '/:lang/try' => sub {
+        var lang => param('lang');
+        template 'i18n';
+    };
 
-diag "Testing baby module";
-use MyTestApp::Lexicon;
-my $loc = MyTestApp::Lexicon->new;
+    get '/:lang/:foo' => sub {
+        var lang => param('lang');
+        my $loc = MyTestApp::Lexicon->new;
+        return $loc->localize(param 'foo');
+    };
+}
 
-var lang => 'it';
-is $loc->localize('try'), 'Sono in italiano';
-is $loc->localize('blabla'), 'blabla';
+my $url  = 'http://localhost';
+my $jar  = HTTP::Cookies->new();
+my $test = Plack::Test->create( TestApp->to_app );
+my $trap = TestApp->dancer_app->logger_engine->trapper;
 
-var lang => 'en';
-is $loc->localize('try'), 'I am english now';
-is $loc->localize('blabla'), 'blabla';
+my $res = $test->request( GET '/en/try' );
+ok $res->is_success, "GET '/en/try' successful" or diag explain $trap->read;
+$jar->extract_cookies($res);
+like $res->content, qr/I am english now/, "got: I am english now";
 
-diag "Loading the app";
+my $req = GET '/en/blabla';
+$jar->add_cookie_header($req);
+$res = $test->request($req);
+ok $res->is_success, "GET '/en/blabla' successful" or diag explain $trap->read;
+ok $res->content eq 'blabla', "got: blabla";
 
-use MyTestApp2;
-use Dancer::Test;
+$req = GET '/it/try';
+$jar->add_cookie_header($req);
+$res = $test->request($req);
+ok $res->is_success, "GET '/it/try' successful" or diag explain $trap->read;
+like $res->content, qr/Sono in italiano/, "got: Sono in italiano ";
 
-my $resp = dancer_response GET => '/en';
-
-response_content_like $resp, qr/I am english now/;
-
-$resp = dancer_response GET => '/it';
-
-response_content_like $resp, qr/Sono in italiano/;
-
+$req = GET '/it/blabla';
+$jar->add_cookie_header($req);
+$res = $test->request($req);
+ok $res->is_success, "GET '/it/blabla' successful" or diag explain $trap->read;
+ok $res->content eq 'blabla', "got: blabla";
 
 done_testing;

@@ -95,7 +95,7 @@ sub _build_i18n_obj {
         }
         catch {
             croak "Failed to import class $class: $_";
-        }
+        };
         my $method = $conf->{i18n}->{method} || 'localize';
 
         # store the closure in the object to avoid loading it up each time

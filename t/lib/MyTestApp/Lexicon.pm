@@ -1,6 +1,6 @@
 package MyTestApp::Lexicon;
 
-use Dancer ':syntax';
+use Dancer2 appname => 'TestApp';
 
 sub new {
     my $class = shift;

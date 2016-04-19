@@ -1,6 +1,6 @@
 package MyTestApp::Lexicon2;
 
-use Dancer ':syntax';
+use Dancer2 appname => TestApp;
 
 sub new {
     my ($class, %params) = @_;
