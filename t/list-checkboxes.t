@@ -1,24 +1,31 @@
-#! perl
-
 use strict;
 use warnings;
-use Test::More tests => 1;
-use Dancer ":tests";
+use Test::More;
+use Plack::Test;
+use HTTP::Request::Common;
 
-set template => 'template_flute';
+{
 
-set views => 't/views';
+    package TestApp;
+    use Dancer2;
 
-set logger => 'console';
-set layout => undef;
+    get '/' => sub {
 
-my $iter = [{ code => "first", received_check => '1', },
-            { code => "second", received_check => '1' }];
+        my $iter = [
+            { code => "first",  received_check => '1', },
+            { code => "second", received_check => '1' }
+        ];
 
-my $out = template(checkbox => { items => $iter });
+        template( checkbox => { items => $iter } );
+    };
+}
 
+my $test = Plack::Test->create( TestApp->to_app );
 
-my $expected =<<'OUT';
+my $res = $test->request( GET '/' );
+ok $res->is_success, "GET / successful";
+
+my $expected = <<'OUT';
 <li class="list">
 <span class="received-check">
 <input class="received" name="received" type="checkbox" value="first" />
@@ -32,6 +39,6 @@ my $expected =<<'OUT';
 OUT
 $expected =~ s/\n//g;
 
-like $out, qr/\Q$expected\E/;
+like $res->content, qr/\Q$expected\E/, "got checkboxes as expected";
 
-
+done_testing;
