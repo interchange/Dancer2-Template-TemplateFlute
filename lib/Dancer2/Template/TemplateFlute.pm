@@ -344,24 +344,26 @@ template, e.g. F<views/layouts/main.html>:
 Iterators can be specified explicitly in the configuration file as below.
 
   engines:
-    template_flute:
-      iterators:
-        fruits:
-          class: JSON
-          file: fruits.json
+    template:
+      template_flute:
+        iterators:
+          fruits:
+            class: JSON
+            file: fruits.json
 
 =head2 FILTER OPTIONS
 
 Filter options and classes can be specified in the configuration file as below.
 
   engines:
-    template_flute:
-      filters:
-        currency:
-          options:
-            int_curr_symbol: "$"
-        image:
-          class: "Flowers::Filters::Image"
+    template:
+      template_flute:
+        filters:
+          currency:
+            options:
+              int_curr_symbol: "$"
+          image:
+            class: "Flowers::Filters::Image"
 
 =head2 ADJUSTING URIS
 
@@ -387,11 +389,12 @@ don't have an accessor, so they should be treated like hashrefs instead.
 You can specify classes with the following syntax:
 
   engines:
-    template_flute:
-      autodetect:
-        disable:
-          - My::Class1
-          - My::Class2
+    template:
+      template_flute:
+        autodetect:
+          disable:
+            - My::Class1
+            - My::Class2
 
 
 The class matching is checked by L<Template::Flute> with C<isa>, so
@@ -414,10 +417,11 @@ Example configuration, assuming the class C<MyApp::Lexicon> provides a
 C<try_to_translate> method.
 
   engines:
-    template_flute:
-      i18n:
-        class: MyApp::Lexicon
-        method: try_to_translate
+    template:
+      template_flute:
+        i18n:
+          class: MyApp::Lexicon
+          method: try_to_translate
 
 
 A class could be something like this:
@@ -460,14 +464,15 @@ Optionally, you can pass the options to instantiate the class in the
 configuration. Like this:
 
   engines:
-    template_flute:
-      i18n:
-        class: MyApp::Lexicon
-        method: localize
-        options:
-          append: 'X'
-          prepend: 'Y'
-          lexicon: 'path/to/po/files'
+    template:
+      template_flute:
+        i18n:
+          class: MyApp::Lexicon
+          method: localize
+          options:
+            append: 'X'
+            prepend: 'Y'
+            lexicon: 'path/to/po/files'
 
 This will call
 
@@ -489,15 +494,17 @@ higher logging level you are not going to see it).
 Example configuration:
 
   engines:
-    template_flute:
-      check_dangling: 1
+    template:
+      template_flute:
+        check_dangling: 1
 
 When the environment is set to C<development> this feature is turned
 on by default. You can silence the logs by setting:
 
   engines:
-    template_flute:
-      disable_check_dangling: 1
+    template:
+      template_flute:
+        disable_check_dangling: 1
 
 =head2 FORMS
 
