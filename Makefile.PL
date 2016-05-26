@@ -21,7 +21,7 @@ WriteMakefile(
     },
     PREREQ_PM => {
         'Carp'                 => 0,
-        'Dancer2'              => 0,
+        'Dancer2'              => '0.200000',
         'Dancer2::Core::Types' => 0,
         'Module::Runtime'      => 0,
         'Moo'                  => '2.000000',
@@ -43,5 +43,5 @@ WriteMakefile(
         },
     },
     dist => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
-    clean => { FILES => 'Dancer2-Template-Template-Flute-*' },
+    clean => { FILES => 'Dancer2-Template-TemplateFlute-*' },
 );
