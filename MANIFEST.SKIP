@@ -9,3 +9,4 @@ MYMETA\.(json|yml)$
 ^blib
 ^lib/Template/
 ^\.git.*
+\.travis\.yml
