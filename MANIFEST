@@ -15,7 +15,6 @@ t/dangling-on.t
 t/dangling-on-disabled.t
 t/dangling.t
 t/disable-autodect.t
-t/double-dropdown.t
 t/email-cids.t
 t/environments/dangling.yml
 t/environments/disable-autodect.yml
@@ -24,7 +23,6 @@ t/environments/i18n.yml
 t/environments/i18n-2.yml
 t/i18n-2.t
 t/i18n.t
-t/lib/MyTestApp.pm
 t/lib/MyTestApp/Lexicon.pm
 t/lib/MyTestApp/Lexicon2.pm
 t/list-checkboxes.t
@@ -32,7 +30,6 @@ t/manifest.t
 t/pod-coverage.t
 t/pod.t
 t/session.t
-t/template.t
 t/tf-iterator.t
 t/views/ampersand.html
 t/views/ampersand.xml
