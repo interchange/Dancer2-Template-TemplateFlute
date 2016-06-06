@@ -1,5 +1,10 @@
 Revision history for Dancer2::Template::TemplateFlute
 
+0.201 Mon  6 Jun 18:28:40 CEST 2016
+
+    * Remove tests that need the form method from the plugin (tests moved
+      to Dancer2::Plugin::TemplateFlute).
+
 0.200 Tue 19 Apr 17:03:20 CEST 2016
 
     [DANCER2]
