@@ -10,3 +10,4 @@ MYMETA\.(json|yml)$
 ^lib/Template/
 ^\.git.*
 \.travis\.yml
+README\.md
