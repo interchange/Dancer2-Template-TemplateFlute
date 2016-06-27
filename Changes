@@ -1,5 +1,12 @@
 Revision history for Dancer2::Template::TemplateFlute
 
+0.202 Mon Jun 27 17:01:21 CEST 2016
+
+    [TESTS]
+
+    * set env var DANCER_ENVIRONMENT to undef so tests do not fail when run
+      in an environment that has it set to something else.
+
 0.201 Mon  6 Jun 18:28:40 CEST 2016
 
     * Remove tests that need the form method from the plugin (tests moved

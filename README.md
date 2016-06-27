@@ -4,7 +4,7 @@ Dancer2::Template::TemplateFlute - Template::Flute wrapper for Dancer2
 
 # VERSION
 
-Version 0.201
+Version 0.202
 
 # DESCRIPTION
 
