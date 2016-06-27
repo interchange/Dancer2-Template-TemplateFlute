@@ -1,6 +1,10 @@
 use strict;
 use warnings;
 
+BEGIN {
+    $ENV{DANCER_ENVIRONMENT} = undef;
+}
+
 use Test::More;
 use Test::Deep;
 use Plack::Test;
