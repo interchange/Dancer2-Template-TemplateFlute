@@ -8,8 +8,8 @@ use FindBin qw/$Bin/;
 use lib "$Bin/../lib";
 
 use File::Spec::Functions qw/catfile/;
-use Dancer qw/:script/;
-use Dancer::Plugin::Email;
+use Dancer2;
+use Dancer2::Plugin::Email;
 
 set template => 'template_flute';
 set views => $Bin;
@@ -36,7 +36,7 @@ die "Missing sender and/or recipient" unless $from && $to;
 my $email = {
              from    => $from,
              to      => $to,
-             subject => $subject || 'Template::Flute test mail with patched DPE',
+             subject => $subject || 'Dancer2::Template::Flute test mail',
              body    => $mail,
              type    => 'html',
              attach  => \@attachments,
