@@ -6,11 +6,11 @@ Dancer2::Template::TemplateFlute - Template::Flute wrapper for Dancer2
 
 =head1 VERSION
 
-Version 0.202
+Version 0.203
 
 =cut
 
-our $VERSION = '0.202';
+our $VERSION = '0.203';
 
 use Carp qw/croak/;
 use Dancer2::Core::Types;

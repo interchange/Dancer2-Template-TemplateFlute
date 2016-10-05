@@ -4,7 +4,7 @@ Dancer2::Template::TemplateFlute - Template::Flute wrapper for Dancer2
 
 # VERSION
 
-Version 0.202
+Version 0.203
 
 # DESCRIPTION
 
@@ -400,7 +400,7 @@ You can also look for information at:
 
 # LICENSE AND COPYRIGHT
 
-Copyright 2011-2016 Stefan Hornburg (Racke) &lt;racke@linuxia.de>.
+Copyright 2011-2016 Stefan Hornburg (Racke) <racke@linuxia.de>.
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of either: the GNU General Public License as published

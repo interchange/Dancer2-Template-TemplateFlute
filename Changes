@@ -1,5 +1,12 @@
 Revision history for Dancer2::Template::TemplateFlute
 
+0.203 Wed  5 Oct 11:42:20 CEST 2016
+
+    [BUG FIXES]
+
+    * When app was mounted on non-root mount point the TF url rewrite flag
+      was not being set correctly.
+
 0.202 Mon Jun 27 17:01:21 CEST 2016
 
     [TESTS]
