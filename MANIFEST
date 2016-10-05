@@ -31,6 +31,7 @@ t/pod-coverage.t
 t/pod.t
 t/session.t
 t/tf-iterator.t
+t/url.t
 t/views/ampersand.html
 t/views/ampersand.xml
 t/views/checkbox.html
@@ -69,3 +70,5 @@ t/views/register.html
 t/views/register.xml
 t/views/salute.html
 t/views/salute.xml
+t/views/url.html
+t/views/url.xml
