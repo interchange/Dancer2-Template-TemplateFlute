@@ -126,10 +126,7 @@ sub render ($$$) {
 
     # determine whether we need to pass an adjust URI to Template::Flute
     if ( my $request = $tokens->{request} ) {
-        my $pos = index( $request->path, $request->path_info );
-        if ( $pos > 0 ) {
-            $args{uri} = substr( $request->path, 0, $pos );
-        }
+        $args{uri} = $request->base->path if $request->base->path ne '/';
     }
 
     if ( my $i18n = $self->i18n_obj ) {
